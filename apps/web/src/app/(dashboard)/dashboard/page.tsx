@@ -7,7 +7,7 @@ import { ExpenseList } from '@/components/expenses/ExpenseList';
 import { SpendingChart } from '@/components/charts/SpendingChart';
 import { CategoryChart } from '@/components/charts/CategoryChart';
 import { useAuthStore } from '@/stores/auth';
-import { apiClient } from '@spendsmart/shared';
+import { expensesService } from '@/services/expenses';
 
 interface DashboardStats {
   totalSpent: number;
@@ -29,12 +29,23 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        // For now, using mock data until backend analytics endpoint is ready
+        // Get current month's date range
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+        // Fetch expense summary from Supabase
+        const summary = await expensesService.getExpenseSummary(startOfMonth, endOfMonth);
+
+        const monthlyBudget = 5000; // TODO: Get from user settings
+        const totalSpent = summary.totalUserShare;
+        const savingsRate = monthlyBudget > 0 ? Math.max(0, ((monthlyBudget - totalSpent) / monthlyBudget) * 100) : 0;
+
         setStats({
-          totalSpent: 2847.52,
-          monthlyBudget: 5000,
-          savingsRate: 43.1,
-          transactionCount: 47,
+          totalSpent,
+          monthlyBudget,
+          savingsRate: Math.round(savingsRate * 10) / 10,
+          transactionCount: summary.transactionCount,
         });
       } catch (error) {
         console.error('Failed to fetch stats:', error);

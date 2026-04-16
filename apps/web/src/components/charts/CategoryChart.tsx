@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   PieChart,
   Pie,
@@ -9,6 +9,7 @@ import {
   Legend,
   Tooltip,
 } from 'recharts';
+import { expensesService } from '@/services/expenses';
 
 const COLORS = [
   '#6366f1', // indigo
@@ -21,20 +22,41 @@ const COLORS = [
   '#84cc16', // lime
 ];
 
-// Mock data - will be replaced with API call
-const mockCategoryData = [
-  { name: 'Housing', value: 1200, color: COLORS[0] },
-  { name: 'Groceries', value: 450, color: COLORS[1] },
-  { name: 'Transport', value: 280, color: COLORS[2] },
-  { name: 'Dining', value: 220, color: COLORS[3] },
-  { name: 'Entertainment', value: 180, color: COLORS[4] },
-  { name: 'Utilities', value: 150, color: COLORS[5] },
-  { name: 'Health', value: 120, color: COLORS[6] },
-  { name: 'Other', value: 247.52, color: COLORS[7] },
-];
+interface CategoryData {
+  name: string;
+  value: number;
+  color: string;
+}
 
 export function CategoryChart() {
-  const data = useMemo(() => mockCategoryData, []);
+  const [data, setData] = useState<CategoryData[]>([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Get current month
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+        const summary = await expensesService.getExpenseSummary(startOfMonth, endOfMonth);
+
+        // Convert to chart format
+        const chartData = summary.byCategory.map((cat, index) => ({
+          name: cat.name,
+          value: Math.round(cat.total * 100) / 100,
+          color: cat.color || COLORS[index % COLORS.length],
+        }));
+
+        setData(chartData);
+      } catch (error) {
+        console.error('Failed to fetch category data:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   const total = useMemo(
     () => data.reduce((sum, item) => sum + item.value, 0),
     [data]
@@ -73,7 +95,7 @@ export function CategoryChart() {
             layout="vertical"
             align="right"
             verticalAlign="middle"
-            formatter={(value, entry) => (
+            formatter={(value) => (
               <span className="text-sm text-gray-600">{value}</span>
             )}
           />

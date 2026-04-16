@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LineChart,
   Line,
@@ -10,26 +10,65 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { expensesService } from '@/services/expenses';
 
-// Mock data - will be replaced with API call
-const generateMockData = () => {
-  const data = [];
-  const today = new Date();
-
-  for (let i = 13; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    data.push({
-      date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      amount: Math.round((Math.random() * 150 + 20) * 100) / 100,
-    });
-  }
-
-  return data;
-};
+interface DailySpending {
+  date: string;
+  amount: number;
+}
 
 export function SpendingChart() {
-  const data = useMemo(() => generateMockData(), []);
+  const [data, setData] = useState<DailySpending[]>([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Get last 14 days
+        const today = new Date();
+        const twoWeeksAgo = new Date(today);
+        twoWeeksAgo.setDate(today.getDate() - 13);
+
+        const startDate = twoWeeksAgo.toISOString().split('T')[0];
+        const endDate = today.toISOString().split('T')[0];
+
+        const expenses = await expensesService.getExpenses({
+          start_date: startDate,
+          end_date: endDate,
+        }, 500);
+
+        // Group expenses by date
+        const dailyTotals: Record<string, number> = {};
+
+        // Initialize all dates with 0
+        for (let i = 13; i >= 0; i--) {
+          const date = new Date(today);
+          date.setDate(date.getDate() - i);
+          const dateStr = date.toISOString().split('T')[0];
+          dailyTotals[dateStr] = 0;
+        }
+
+        // Sum expenses by date
+        expenses.forEach((expense) => {
+          const dateStr = expense.expense_date;
+          if (dailyTotals[dateStr] !== undefined) {
+            dailyTotals[dateStr] += Number(expense.user_share);
+          }
+        });
+
+        // Convert to array format for chart
+        const chartData = Object.entries(dailyTotals).map(([dateStr, amount]) => ({
+          date: new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          amount: Math.round(amount * 100) / 100,
+        }));
+
+        setData(chartData);
+      } catch (error) {
+        console.error('Failed to fetch spending data:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   return (
     <div className="h-[300px] w-full">
