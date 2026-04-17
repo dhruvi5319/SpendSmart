@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Sparkles } from 'lucide-react';
 import { Button, Input, Select, Switch } from '@/components/ui';
 import { categoriesService, type Category } from '@/services/categories';
 import { expensesService, type Expense, type CreateExpenseInput } from '@/services/expenses';
+import { mlService, type CategoryPredictionResponse } from '@/services/ml';
 
 const expenseSchema = z.object({
   amount: z.number().positive('Amount must be positive'),
@@ -31,6 +33,8 @@ export function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFormProps) 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [mlSuggestion, setMlSuggestion] = useState<CategoryPredictionResponse | null>(null);
+  const [isLoadingML, setIsLoadingML] = useState(false);
 
   // Fetch categories on mount
   useEffect(() => {
@@ -68,6 +72,39 @@ export function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFormProps) 
   });
 
   const isHousehold = watch('is_household');
+  const description = watch('description');
+  const categoryId = watch('category_id');
+
+  // Debounced ML prediction when description changes
+  useEffect(() => {
+    // Only predict if description has 3+ chars and no category selected
+    if (description && description.length >= 3 && !categoryId) {
+      const timeoutId = setTimeout(async () => {
+        setIsLoadingML(true);
+        try {
+          const prediction = await mlService.categorize(description);
+          setMlSuggestion(prediction);
+        } catch (err) {
+          console.error('ML prediction failed:', err);
+          setMlSuggestion(null);
+        } finally {
+          setIsLoadingML(false);
+        }
+      }, 500); // 500ms debounce
+
+      return () => clearTimeout(timeoutId);
+    } else {
+      setMlSuggestion(null);
+    }
+  }, [description, categoryId]);
+
+  // Apply ML suggestion
+  const applyMlSuggestion = useCallback(() => {
+    if (mlSuggestion?.category_id) {
+      setValue('category_id', mlSuggestion.category_id);
+      setMlSuggestion(null);
+    }
+  }, [mlSuggestion, setValue]);
 
   const handleFormSubmit = async (data: ExpenseFormData) => {
     setIsSubmitting(true);
@@ -136,12 +173,43 @@ export function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFormProps) 
         />
       </div>
 
-      <Input
-        label="Description"
-        placeholder="What did you spend on?"
-        error={errors.description?.message}
-        {...register('description')}
-      />
+      <div>
+        <Input
+          label="Description"
+          placeholder="What did you spend on?"
+          error={errors.description?.message}
+          {...register('description')}
+        />
+
+        {/* ML Category Suggestion */}
+        {(isLoadingML || mlSuggestion) && (
+          <div className="mt-2">
+            {isLoadingML ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Sparkles className="h-4 w-4 animate-pulse text-primary-500" />
+                <span>Analyzing...</span>
+              </div>
+            ) : mlSuggestion && (
+              <div className="flex items-center gap-2 rounded-lg bg-primary-50 px-3 py-2">
+                <Sparkles className="h-4 w-4 text-primary-600" />
+                <span className="text-sm text-gray-700">
+                  Suggested: <strong>{mlSuggestion.predicted_category}</strong>
+                </span>
+                <span className="text-xs text-gray-500">
+                  ({Math.round(mlSuggestion.confidence * 100)}% confident)
+                </span>
+                <button
+                  type="button"
+                  onClick={applyMlSuggestion}
+                  className="ml-auto rounded bg-primary-600 px-2 py-1 text-xs font-medium text-white hover:bg-primary-700"
+                >
+                  Apply
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       <Input
         label="Date"
