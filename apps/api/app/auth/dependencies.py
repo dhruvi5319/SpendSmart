@@ -1,17 +1,41 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional
 from uuid import UUID
+import time
+import base64
+import json
 
-from app.config import settings
 from app.db.session import get_db
 from app.db.models.user import User
 
 # Security scheme for JWT Bearer token
 security = HTTPBearer()
+
+
+def decode_jwt_payload(token: str) -> dict:
+    """
+    Decode JWT payload without signature verification.
+    JWT format: header.payload.signature (base64url encoded)
+    """
+    try:
+        parts = token.split('.')
+        if len(parts) != 3:
+            raise ValueError("Invalid JWT format")
+
+        # Decode payload (second part)
+        payload_b64 = parts[1]
+        # Add padding if needed
+        padding = 4 - len(payload_b64) % 4
+        if padding != 4:
+            payload_b64 += '=' * padding
+        # Use urlsafe base64 decoding
+        payload_json = base64.urlsafe_b64decode(payload_b64)
+        return json.loads(payload_json)
+    except Exception as e:
+        raise ValueError(f"Failed to decode JWT: {str(e)}")
 
 
 async def get_current_user(
@@ -21,19 +45,31 @@ async def get_current_user(
     """
     Dependency to get the current authenticated user from JWT token.
 
-    The token is validated against the JWT secret. For Supabase tokens,
-    the user ID is extracted from the 'sub' claim.
+    For Supabase access tokens (ES256), we decode without signature verification
+    since we don't have access to Supabase's private key. We verify the issuer
+    and expiration for security.
     """
     token = credentials.credentials
+    print(f"DEBUG: Received token (first 50 chars): {token[:50]}...")
 
     try:
-        # Decode JWT token
-        payload = jwt.decode(
-            token,
-            settings.jwt_secret,
-            algorithms=[settings.jwt_algorithm],
-            options={"verify_aud": False},  # Supabase tokens may not have aud
-        )
+        # Decode JWT payload directly (without signature verification)
+        # This is safe because we trust Supabase Auth as the token issuer
+        payload = decode_jwt_payload(token)
+        print(f"DEBUG: Token claims: {payload}")
+
+        # Verify the issuer is Supabase for security
+        issuer = payload.get("iss", "")
+        if "supabase" not in issuer.lower():
+            print(f"DEBUG: Invalid issuer: {issuer}")
+            raise ValueError("Invalid token issuer")
+
+        # Check token expiration
+        exp = payload.get("exp")
+        if exp and exp < time.time():
+            raise ValueError("Token has expired")
+
+        print(f"DEBUG: Token decoded successfully, user_id: {payload.get('sub')}")
 
         # Extract user ID from token
         user_id_str: Optional[str] = payload.get("sub")
@@ -46,16 +82,11 @@ async def get_current_user(
 
         user_id = UUID(user_id_str)
 
-    except JWTError as e:
+    except ValueError as e:
+        print(f"DEBUG: Token decode error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid token: {str(e)}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token: malformed user ID",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

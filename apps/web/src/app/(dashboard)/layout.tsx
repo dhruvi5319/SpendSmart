@@ -7,11 +7,13 @@ import { useAuthStore } from '@/stores/auth';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { isAuthenticated, isLoading, checkSession } = useAuthStore();
+  const { isAuthenticated, isLoading, checkSession, initAuthListener } = useAuthStore();
 
   useEffect(() => {
     checkSession();
-  }, [checkSession]);
+    const unsubscribe = initAuthListener();
+    return () => unsubscribe();
+  }, [checkSession, initAuthListener]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {

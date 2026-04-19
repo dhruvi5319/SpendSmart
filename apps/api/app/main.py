@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.config import settings
-from app.routers import expenses, categories, profile, health, ml
+from app.routers import expenses, categories, profile, health, ml, recurring, goals, predictions, budget
 
 
 @asynccontextmanager
@@ -40,6 +40,10 @@ app.include_router(profile.router)
 app.include_router(categories.router)
 app.include_router(expenses.router)
 app.include_router(ml.router)
+app.include_router(recurring.router)
+app.include_router(goals.router)
+app.include_router(predictions.router)
+app.include_router(budget.router)
 
 
 if __name__ == "__main__":

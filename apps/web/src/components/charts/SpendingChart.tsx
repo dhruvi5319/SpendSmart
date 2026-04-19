@@ -49,7 +49,8 @@ export function SpendingChart() {
 
         // Sum expenses by date
         expenses.forEach((expense) => {
-          const dateStr = expense.expense_date;
+          // Normalize the expense date to YYYY-MM-DD format
+          const dateStr = expense.expense_date.split('T')[0];
           if (dailyTotals[dateStr] !== undefined) {
             dailyTotals[dateStr] += Number(expense.user_share);
           }
@@ -86,6 +87,7 @@ export function SpendingChart() {
             tickLine={false}
             axisLine={{ stroke: '#e5e7eb' }}
             tickFormatter={(value) => `$${value}`}
+            domain={[0, (dataMax: number) => Math.max(dataMax, 10)]}
           />
           <Tooltip
             formatter={(value: number) => [`$${value.toFixed(2)}`, 'Spent']}

@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui';
 import { DollarSign, TrendingUp, TrendingDown, Receipt } from 'lucide-react';
 import { ExpenseList } from '@/components/expenses/ExpenseList';
-import { SpendingChart } from '@/components/charts/SpendingChart';
-import { CategoryChart } from '@/components/charts/CategoryChart';
+import { SpendingChart, CategoryChart, PredictionChart } from '@/components/charts';
+import { BudgetRecommendations } from '@/components/budget';
 import { useAuthStore } from '@/stores/auth';
 import { expensesService } from '@/services/expenses';
 
@@ -60,28 +60,28 @@ export default function DashboardPage() {
   const statCards = [
     {
       title: 'Total Spent',
-      value: `$${stats.totalSpent.toLocaleString()}`,
+      value: `$${(stats?.totalSpent ?? 0).toLocaleString()}`,
       icon: DollarSign,
       color: 'text-blue-600',
       bgColor: 'bg-blue-100',
     },
     {
       title: 'Monthly Budget',
-      value: `$${stats.monthlyBudget.toLocaleString()}`,
+      value: `$${(stats?.monthlyBudget ?? 0).toLocaleString()}`,
       icon: TrendingUp,
       color: 'text-green-600',
       bgColor: 'bg-green-100',
     },
     {
       title: 'Savings Rate',
-      value: `${stats.savingsRate}%`,
+      value: `${stats?.savingsRate ?? 0}%`,
       icon: TrendingDown,
       color: 'text-purple-600',
       bgColor: 'bg-purple-100',
     },
     {
       title: 'Transactions',
-      value: stats.transactionCount.toString(),
+      value: (stats?.transactionCount ?? 0).toString(),
       icon: Receipt,
       color: 'text-orange-600',
       bgColor: 'bg-orange-100',
@@ -136,6 +136,12 @@ export default function DashboardPage() {
             <CategoryChart />
           </CardContent>
         </Card>
+      </div>
+
+      {/* Predictions and Budget Insights */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <PredictionChart />
+        <BudgetRecommendations />
       </div>
 
       {/* Recent Transactions */}

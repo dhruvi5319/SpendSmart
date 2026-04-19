@@ -13,6 +13,7 @@ interface AuthState {
   signUp: (email: string, password: string, displayName?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   checkSession: () => Promise<void>;
+  initAuthListener: () => () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -113,6 +114,25 @@ export const useAuthStore = create<AuthState>()(
         } finally {
           set({ isLoading: false });
         }
+      },
+
+      initAuthListener: () => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (_event, session) => {
+            if (session?.user) {
+              const authUser: AuthUser = {
+                id: session.user.id,
+                email: session.user.email!,
+                user_metadata: session.user.user_metadata,
+              };
+              get().setUser(authUser, session.access_token);
+            } else {
+              set({ user: null, token: null, isAuthenticated: false });
+              apiClient.setToken(null);
+            }
+          }
+        );
+        return () => subscription.unsubscribe();
       },
     }),
     {

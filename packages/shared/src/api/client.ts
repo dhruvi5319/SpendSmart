@@ -2,11 +2,16 @@ import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+let instanceCount = 0;
+
 class ApiClient {
   private client: AxiosInstance;
   private token: string | null = null;
+  private instanceId: number;
 
   constructor() {
+    this.instanceId = ++instanceCount;
+    console.log(`ApiClient instance #${this.instanceId} created`);
     this.client = axios.create({
       baseURL: API_BASE_URL,
       headers: {
@@ -16,8 +21,10 @@ class ApiClient {
 
     // Request interceptor to add auth token
     this.client.interceptors.request.use((config) => {
+      console.log(`ApiClient #${this.instanceId} interceptor - token present:`, !!this.token, 'url:', config.url);
       if (this.token) {
         config.headers.Authorization = `Bearer ${this.token}`;
+        console.log(`ApiClient #${this.instanceId} - Added Authorization header`);
       }
       return config;
     });
@@ -36,6 +43,7 @@ class ApiClient {
   }
 
   setToken(token: string | null) {
+    console.log(`ApiClient #${this.instanceId} setToken called, token:`, token ? token.substring(0, 20) + '...' : 'null');
     this.token = token;
   }
 

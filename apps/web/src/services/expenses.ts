@@ -1,5 +1,7 @@
-import { apiClient } from '@spendsmart/shared';
+import axios from 'axios';
 import { supabase } from '@/lib/supabase';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface Expense {
   id: string;
@@ -58,25 +60,67 @@ export interface ExpenseSummary {
   total_user_share: number;
   household_total: number;
   personal_total: number;
-  transaction_count: number;
+  total_count: number;  // Backend returns total_count, not transaction_count
   by_category: Array<{
     category_id: string | null;
     category_name: string;
     total: number;
     count: number;
-    icon?: string;
-    color?: string;
+    category_icon?: string;
+    category_color?: string;
   }>;
 }
 
-// Helper to get and set auth token from Supabase session
-async function ensureAuthToken(): Promise<void> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.access_token) {
-    apiClient.setToken(session.access_token);
-  } else {
-    throw new Error('User not authenticated');
+// Helper to get auth token from Supabase session
+async function getAuthToken(): Promise<string> {
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error) {
+    console.error('Error getting session:', error);
+    throw new Error('Failed to get session');
   }
+  if (session?.access_token) {
+    return session.access_token;
+  }
+  throw new Error('User not authenticated');
+}
+
+// Create axios instance with auth header
+async function apiGet<T>(url: string): Promise<T> {
+  const token = await getAuthToken();
+  const response = await axios.get<T>(`${API_BASE_URL}${url}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+}
+
+async function apiPost<T>(url: string, data?: unknown): Promise<T> {
+  const token = await getAuthToken();
+  const response = await axios.post<T>(`${API_BASE_URL}${url}`, data, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  return response.data;
+}
+
+async function apiPut<T>(url: string, data?: unknown): Promise<T> {
+  const token = await getAuthToken();
+  const response = await axios.put<T>(`${API_BASE_URL}${url}`, data, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  return response.data;
+}
+
+async function apiDelete<T>(url: string): Promise<T> {
+  const token = await getAuthToken();
+  const response = await axios.delete<T>(`${API_BASE_URL}${url}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
 }
 
 export const expensesService = {
@@ -84,8 +128,6 @@ export const expensesService = {
    * Get all expenses for the current user
    */
   async getExpenses(filters?: ExpenseFilters, limit = 50, offset = 0): Promise<Expense[]> {
-    await ensureAuthToken();
-
     const params = new URLSearchParams();
     params.append('skip', offset.toString());
     params.append('limit', limit.toString());
@@ -96,16 +138,15 @@ export const expensesService = {
     if (filters?.is_household !== undefined) params.append('is_household', filters.is_household.toString());
     if (filters?.search) params.append('search', filters.search);
 
-    return apiClient.get<Expense[]>(`/api/v1/expenses?${params.toString()}`);
+    return apiGet<Expense[]>(`/api/v1/expenses?${params.toString()}`);
   },
 
   /**
    * Get a single expense by ID
    */
   async getExpense(id: string): Promise<Expense | null> {
-    await ensureAuthToken();
     try {
-      return await apiClient.get<Expense>(`/api/v1/expenses/${id}`);
+      return await apiGet<Expense>(`/api/v1/expenses/${id}`);
     } catch (error) {
       console.error('Error fetching expense:', error);
       return null;
@@ -116,37 +157,32 @@ export const expensesService = {
    * Create a new expense
    */
   async createExpense(input: CreateExpenseInput): Promise<Expense> {
-    await ensureAuthToken();
-    return apiClient.post<Expense>('/api/v1/expenses', input);
+    return apiPost<Expense>('/api/v1/expenses', input);
   },
 
   /**
    * Update an expense
    */
   async updateExpense(id: string, input: UpdateExpenseInput): Promise<Expense> {
-    await ensureAuthToken();
-    return apiClient.put<Expense>(`/api/v1/expenses/${id}`, input);
+    return apiPut<Expense>(`/api/v1/expenses/${id}`, input);
   },
 
   /**
    * Delete an expense
    */
   async deleteExpense(id: string): Promise<void> {
-    await ensureAuthToken();
-    await apiClient.delete(`/api/v1/expenses/${id}`);
+    await apiDelete(`/api/v1/expenses/${id}`);
   },
 
   /**
    * Get expense summary for a date range
    */
   async getExpenseSummary(startDate: string, endDate: string) {
-    await ensureAuthToken();
-
     const params = new URLSearchParams();
     params.append('start_date', startDate);
     params.append('end_date', endDate);
 
-    const summary = await apiClient.get<ExpenseSummary>(`/api/v1/expenses/summary?${params.toString()}`);
+    const summary = await apiGet<ExpenseSummary>(`/api/v1/expenses/summary?${params.toString()}`);
 
     // Transform to match existing frontend expectations
     return {
@@ -154,11 +190,11 @@ export const expensesService = {
       totalUserShare: summary.total_user_share,
       householdTotal: summary.household_total,
       personalTotal: summary.personal_total,
-      transactionCount: summary.transaction_count,
+      transactionCount: summary.total_count,  // Backend returns total_count
       byCategory: summary.by_category.map((cat) => ({
         name: cat.category_name,
-        icon: cat.icon || 'more-horizontal',
-        color: cat.color || '#6b7280',
+        icon: cat.category_icon || 'more-horizontal',
+        color: cat.category_color || '#6b7280',
         total: cat.total,
         count: cat.count,
       })),
