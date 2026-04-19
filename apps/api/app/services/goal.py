@@ -11,6 +11,7 @@ from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db.models.goal import Goal
+from ..db.models.goal_contribution import GoalContribution
 from ..models.goal import GoalCreate, GoalUpdate, GoalContribute
 
 
@@ -34,7 +35,7 @@ class GoalService:
         query = (
             select(Goal)
             .where(and_(*conditions))
-            .order_by(Goal.is_completed, Goal.deadline.nulls_last(), Goal.created_at.desc())
+            .order_by(Goal.is_completed, Goal.target_date.nulls_last(), Goal.created_at.desc())
         )
 
         result = await self.db.execute(query)
@@ -60,7 +61,8 @@ class GoalService:
             target_amount=data.target_amount,
             current_amount=data.current_amount,
             currency=data.currency,
-            deadline=data.deadline,
+            target_date=data.target_date,
+            priority=getattr(data, 'priority', 0),
             icon=data.icon,
             color=data.color,
         )
@@ -92,12 +94,21 @@ class GoalService:
         return goal
 
     async def contribute(self, goal_id: UUID, user_id: UUID, data: GoalContribute) -> Optional[Goal]:
-        """Add to a goal's current amount."""
+        """Add to a goal's current amount and record the contribution."""
         goal = await self.get_by_id(goal_id, user_id)
         if not goal:
             return None
 
-        # Add contribution
+        # Create contribution record
+        contribution = GoalContribution(
+            goal_id=goal_id,
+            user_id=user_id,
+            amount=data.amount,
+            note=getattr(data, 'note', None),
+        )
+        self.db.add(contribution)
+
+        # Add contribution to goal
         goal.current_amount = Decimal(str(goal.current_amount)) + data.amount
 
         # Check if goal is now completed
@@ -109,6 +120,21 @@ class GoalService:
         await self.db.refresh(goal)
 
         return goal
+
+    async def get_contributions(self, goal_id: UUID, user_id: UUID) -> list[GoalContribution]:
+        """Get all contributions for a goal."""
+        # First verify the goal belongs to the user
+        goal = await self.get_by_id(goal_id, user_id)
+        if not goal:
+            return []
+
+        query = (
+            select(GoalContribution)
+            .where(GoalContribution.goal_id == goal_id)
+            .order_by(GoalContribution.contributed_at.desc())
+        )
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
 
     async def delete(self, goal_id: UUID, user_id: UUID) -> bool:
         """Delete a goal."""

@@ -5,7 +5,7 @@ Database model for savings goals.
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import Column, String, Numeric, Boolean, Date, DateTime, ForeignKey, Text
+from sqlalchemy import Column, String, Numeric, Boolean, Date, DateTime, ForeignKey, Text, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -28,7 +28,10 @@ class Goal(Base):
     currency = Column(String(3), default="USD", nullable=False)
 
     # Timeline
-    deadline = Column(Date, nullable=True)
+    target_date = Column(Date, nullable=True)
+
+    # Priority (lower = higher priority)
+    priority = Column(Integer, default=0, nullable=False)
 
     # Visual
     icon = Column(String(10), nullable=True)  # Emoji
@@ -42,8 +45,9 @@ class Goal(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 
-    # Relationship
+    # Relationships
     user = relationship("User", back_populates="goals")
+    contributions = relationship("GoalContribution", back_populates="goal", cascade="all, delete-orphan", order_by="desc(GoalContribution.contributed_at)")
 
     def __repr__(self):
         return f"<Goal {self.name}: {self.current_amount}/{self.target_amount}>"

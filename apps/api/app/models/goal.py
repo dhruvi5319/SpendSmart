@@ -16,7 +16,8 @@ class GoalBase(BaseModel):
     description: Optional[str] = None
     target_amount: Decimal = Field(..., gt=0, max_digits=12, decimal_places=2)
     currency: str = Field(default="USD", min_length=3, max_length=3)
-    deadline: Optional[date] = None
+    target_date: Optional[date] = None
+    priority: int = Field(default=0, ge=0)
     icon: Optional[str] = Field(default=None, max_length=10)
     color: Optional[str] = Field(default=None, max_length=7)
 
@@ -33,7 +34,8 @@ class GoalUpdate(BaseModel):
     target_amount: Optional[Decimal] = Field(None, gt=0, max_digits=12, decimal_places=2)
     current_amount: Optional[Decimal] = Field(None, ge=0, max_digits=12, decimal_places=2)
     currency: Optional[str] = Field(None, min_length=3, max_length=3)
-    deadline: Optional[date] = None
+    target_date: Optional[date] = None
+    priority: Optional[int] = Field(None, ge=0)
     icon: Optional[str] = Field(None, max_length=10)
     color: Optional[str] = Field(None, max_length=7)
 
@@ -41,6 +43,19 @@ class GoalUpdate(BaseModel):
 class GoalContribute(BaseModel):
     """Schema for adding to a goal's current amount."""
     amount: Decimal = Field(..., gt=0, max_digits=12, decimal_places=2)
+    note: Optional[str] = None
+
+
+class GoalContributionResponse(BaseModel):
+    """Response schema for a goal contribution."""
+    id: UUID
+    goal_id: UUID
+    amount: Decimal
+    note: Optional[str]
+    contributed_at: datetime
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 class GoalResponse(BaseModel):
@@ -52,7 +67,8 @@ class GoalResponse(BaseModel):
     target_amount: Decimal
     current_amount: Decimal
     currency: str
-    deadline: Optional[date]
+    target_date: Optional[date]
+    priority: int
     icon: Optional[str]
     color: Optional[str]
     is_completed: bool
@@ -93,10 +109,10 @@ class GoalResponse(BaseModel):
     def compute_overdue(cls, v, info):
         """Check if goal is overdue."""
         if hasattr(info, 'data'):
-            deadline = info.data.get('deadline')
+            target_date = info.data.get('target_date')
             is_completed = info.data.get('is_completed', False)
-            if deadline and not is_completed:
-                return date.today() > deadline
+            if target_date and not is_completed:
+                return date.today() > target_date
         return False
 
 

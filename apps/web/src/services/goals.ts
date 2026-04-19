@@ -9,7 +9,8 @@ export interface Goal {
   target_amount: number;
   current_amount: number;
   currency: string;
-  deadline: string | null;
+  target_date: string | null;
+  priority: number;
   icon: string | null;
   color: string | null;
   is_completed: boolean;
@@ -37,7 +38,8 @@ export interface CreateGoalInput {
   target_amount: number;
   current_amount?: number;
   currency?: string;
-  deadline?: string;
+  target_date?: string;
+  priority?: number;
   icon?: string;
   color?: string;
 }

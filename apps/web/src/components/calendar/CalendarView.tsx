@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, AlertTriangle, FileText } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
 import { expensesService, type Expense } from '@/services/expenses';
+import { billsService, type Bill } from '@/services/bills';
 import { cn } from '@/lib/utils';
 
 interface CalendarViewProps {
@@ -15,40 +16,48 @@ interface DayData {
   isCurrentMonth: boolean;
   isToday: boolean;
   expenses: Expense[];
+  bills: Bill[];
   total: number;
+  hasBillsDue: boolean;
+  hasOverdueBills: boolean;
 }
 
 export function CalendarView({ onDateClick }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [bills, setBills] = useState<Bill[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<DayData | null>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  // Fetch expenses for the current month
+  // Fetch expenses and bills for the current month
   useEffect(() => {
-    const fetchExpenses = async () => {
+    const fetchData = async () => {
       setIsLoading(true);
       try {
         const startDate = new Date(year, month, 1).toISOString().split('T')[0];
         const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
 
-        const data = await expensesService.getExpenses({
-          start_date: startDate,
-          end_date: endDate,
-        }, 500, 0);
+        const [expensesData, billsData] = await Promise.all([
+          expensesService.getExpenses({
+            start_date: startDate,
+            end_date: endDate,
+          }, 500, 0),
+          billsService.getBills().catch(() => ({ bills: [] })),
+        ]);
 
-        setExpenses(data);
+        setExpenses(expensesData);
+        setBills(billsData.bills || []);
       } catch (err) {
-        console.error('Failed to fetch expenses:', err);
+        console.error('Failed to fetch data:', err);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchExpenses();
+    fetchData();
   }, [year, month]);
 
   // Generate calendar days
@@ -57,6 +66,7 @@ export function CalendarView({ onDateClick }: CalendarViewProps) {
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const today = new Date();
+    const todayKey = today.toISOString().split('T')[0];
 
     // Map expenses by date
     const expensesByDate: Record<string, Expense[]> = {};
@@ -68,57 +78,62 @@ export function CalendarView({ onDateClick }: CalendarViewProps) {
       expensesByDate[dateKey].push(exp);
     });
 
+    // Map bills by due date
+    const billsByDate: Record<string, Bill[]> = {};
+    bills.forEach((bill) => {
+      if (bill.is_active) {
+        const dateKey = bill.due_date.split('T')[0];
+        if (!billsByDate[dateKey]) {
+          billsByDate[dateKey] = [];
+        }
+        billsByDate[dateKey].push(bill);
+      }
+    });
+
+    const createDayData = (date: Date, isCurrentMonth: boolean): DayData => {
+      const dateKey = date.toISOString().split('T')[0];
+      const dayExpenses = expensesByDate[dateKey] || [];
+      const dayBills = billsByDate[dateKey] || [];
+      const isToday =
+        date.getDate() === today.getDate() &&
+        date.getMonth() === today.getMonth() &&
+        date.getFullYear() === today.getFullYear();
+      const hasOverdueBills = dayBills.some(b => b.is_overdue);
+
+      return {
+        date,
+        isCurrentMonth,
+        isToday,
+        expenses: dayExpenses,
+        bills: dayBills,
+        total: dayExpenses.reduce((sum, e) => sum + Number(e.amount), 0),
+        hasBillsDue: dayBills.length > 0,
+        hasOverdueBills,
+      };
+    };
+
     // Add days from previous month to fill the first week
     const firstDayOfWeek = firstDay.getDay();
     for (let i = firstDayOfWeek - 1; i >= 0; i--) {
       const date = new Date(year, month, -i);
-      const dateKey = date.toISOString().split('T')[0];
-      const dayExpenses = expensesByDate[dateKey] || [];
-      days.push({
-        date,
-        isCurrentMonth: false,
-        isToday: false,
-        expenses: dayExpenses,
-        total: dayExpenses.reduce((sum, e) => sum + Number(e.amount), 0),
-      });
+      days.push(createDayData(date, false));
     }
 
     // Add days of current month
     for (let day = 1; day <= lastDay.getDate(); day++) {
       const date = new Date(year, month, day);
-      const dateKey = date.toISOString().split('T')[0];
-      const dayExpenses = expensesByDate[dateKey] || [];
-      const isToday =
-        date.getDate() === today.getDate() &&
-        date.getMonth() === today.getMonth() &&
-        date.getFullYear() === today.getFullYear();
-
-      days.push({
-        date,
-        isCurrentMonth: true,
-        isToday,
-        expenses: dayExpenses,
-        total: dayExpenses.reduce((sum, e) => sum + Number(e.amount), 0),
-      });
+      days.push(createDayData(date, true));
     }
 
     // Add days from next month to fill the last week
     const remainingDays = 42 - days.length; // 6 rows * 7 days
     for (let i = 1; i <= remainingDays; i++) {
       const date = new Date(year, month + 1, i);
-      const dateKey = date.toISOString().split('T')[0];
-      const dayExpenses = expensesByDate[dateKey] || [];
-      days.push({
-        date,
-        isCurrentMonth: false,
-        isToday: false,
-        expenses: dayExpenses,
-        total: dayExpenses.reduce((sum, e) => sum + Number(e.amount), 0),
-      });
+      days.push(createDayData(date, false));
     }
 
     return days;
-  }, [year, month, expenses]);
+  }, [year, month, expenses, bills]);
 
   const goToPreviousMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1));
@@ -142,7 +157,7 @@ export function CalendarView({ onDateClick }: CalendarViewProps) {
   };
 
   const handleDayClick = (day: DayData) => {
-    if (day.expenses.length > 0) {
+    if (day.expenses.length > 0 || day.bills.length > 0) {
       setSelectedDay(day);
       onDateClick?.(day.date, day.expenses);
     }
@@ -209,7 +224,8 @@ export function CalendarView({ onDateClick }: CalendarViewProps) {
                   'relative min-h-[80px] border-b border-r p-1 text-left transition-colors hover:bg-gray-50',
                   !day.isCurrentMonth && 'bg-gray-50 text-gray-400',
                   day.isToday && 'bg-primary-50',
-                  day.expenses.length > 0 && 'cursor-pointer'
+                  day.hasOverdueBills && 'bg-red-50',
+                  (day.expenses.length > 0 || day.bills.length > 0) && 'cursor-pointer'
                 )}
               >
                 <span
@@ -221,6 +237,20 @@ export function CalendarView({ onDateClick }: CalendarViewProps) {
                   {day.date.getDate()}
                 </span>
 
+                {/* Bills indicator */}
+                {day.hasBillsDue && (
+                  <div
+                    className={cn(
+                      'mt-1 flex items-center gap-1 rounded px-1 py-0.5 text-xs font-medium',
+                      day.hasOverdueBills ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                    )}
+                  >
+                    <FileText className="h-3 w-3" />
+                    {day.bills.length} bill{day.bills.length > 1 ? 's' : ''}
+                  </div>
+                )}
+
+                {/* Expenses total */}
                 {day.total > 0 && (
                   <div
                     className={cn(
@@ -263,45 +293,97 @@ export function CalendarView({ onDateClick }: CalendarViewProps) {
               </button>
             </CardHeader>
             <CardContent className="max-h-[60vh] overflow-y-auto">
-              <div className="space-y-3">
-                {selectedDay.expenses.map((expense) => (
-                  <div
-                    key={expense.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
-                  >
-                    <div className="flex items-center gap-3">
+              {/* Bills Section */}
+              {selectedDay.bills.length > 0 && (
+                <div className="mb-4">
+                  <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                    <FileText className="h-4 w-4" />
+                    Bills Due
+                  </h4>
+                  <div className="space-y-2">
+                    {selectedDay.bills.map((bill) => (
                       <div
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-sm"
-                        style={{
-                          backgroundColor: expense.category?.color
-                            ? `${expense.category.color}20`
-                            : '#e5e7eb',
-                        }}
+                        key={bill.id}
+                        className={cn(
+                          'flex items-center justify-between rounded-lg border p-3',
+                          bill.is_overdue ? 'border-red-200 bg-red-50' : 'border-blue-200 bg-blue-50'
+                        )}
                       >
-                        {expense.category?.icon || '📝'}
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-lg">
+                            {bill.icon || '💳'}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{bill.name}</p>
+                            <p className="text-xs text-gray-500">{bill.frequency}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-semibold text-gray-900">
+                            ${Number(bill.amount).toFixed(2)}
+                          </span>
+                          {bill.is_overdue && (
+                            <p className="flex items-center gap-1 text-xs text-red-600">
+                              <AlertTriangle className="h-3 w-3" />
+                              Overdue
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {expense.description}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {expense.category?.name || 'Uncategorized'}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="font-semibold text-gray-900">
-                      ${Number(expense.amount).toFixed(2)}
-                    </span>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
 
-              <div className="mt-4 flex items-center justify-between border-t pt-4">
-                <span className="font-medium text-gray-700">Total</span>
-                <span className="text-lg font-bold text-gray-900">
-                  {formatCurrency(selectedDay.total)}
-                </span>
-              </div>
+              {/* Expenses Section */}
+              {selectedDay.expenses.length > 0 && (
+                <div>
+                  {selectedDay.bills.length > 0 && (
+                    <h4 className="mb-2 text-sm font-semibold text-gray-700">Expenses</h4>
+                  )}
+                  <div className="space-y-3">
+                    {selectedDay.expenses.map((expense) => (
+                      <div
+                        key={expense.id}
+                        className="flex items-center justify-between rounded-lg border p-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-sm"
+                            style={{
+                              backgroundColor: expense.category?.color
+                                ? `${expense.category.color}20`
+                                : '#e5e7eb',
+                            }}
+                          >
+                            {expense.category?.icon || '📝'}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {expense.description}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {expense.category?.name || 'Uncategorized'}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="font-semibold text-gray-900">
+                          ${Number(expense.amount).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedDay.expenses.length > 0 && (
+                <div className="mt-4 flex items-center justify-between border-t pt-4">
+                  <span className="font-medium text-gray-700">Expenses Total</span>
+                  <span className="text-lg font-bold text-gray-900">
+                    {formatCurrency(selectedDay.total)}
+                  </span>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

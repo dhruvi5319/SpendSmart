@@ -19,6 +19,7 @@ from ..models.goal import (
     GoalContribute,
     GoalResponse,
     GoalListResponse,
+    GoalContributionResponse,
 )
 
 router = APIRouter(prefix="/api/v1/goals", tags=["Goals"])
@@ -31,7 +32,7 @@ def goal_to_response(goal) -> GoalResponse:
 
     progress = min(round(float(current) / float(target) * 100, 1), 100) if target > 0 else 0
     remaining = max(target - current, Decimal("0"))
-    is_overdue = goal.deadline and not goal.is_completed and date.today() > goal.deadline
+    is_overdue = goal.target_date and not goal.is_completed and date.today() > goal.target_date
 
     return GoalResponse(
         id=goal.id,
@@ -41,7 +42,8 @@ def goal_to_response(goal) -> GoalResponse:
         target_amount=goal.target_amount,
         current_amount=goal.current_amount,
         currency=goal.currency,
-        deadline=goal.deadline,
+        target_date=goal.target_date,
+        priority=goal.priority,
         icon=goal.icon,
         color=goal.color,
         is_completed=goal.is_completed,
@@ -166,3 +168,30 @@ async def delete_goal(
 
     if not deleted:
         raise HTTPException(status_code=404, detail="Goal not found")
+
+
+@router.get("/{goal_id}/contributions", response_model=list[GoalContributionResponse])
+async def get_goal_contributions(
+    goal_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get contribution history for a goal.
+
+    Returns all contributions sorted by date (most recent first).
+    """
+    service = GoalService(db)
+    contributions = await service.get_contributions(goal_id, current_user.id)
+
+    return [
+        GoalContributionResponse(
+            id=c.id,
+            goal_id=c.goal_id,
+            amount=c.amount,
+            note=c.note,
+            contributed_at=c.contributed_at,
+            created_at=c.created_at,
+        )
+        for c in contributions
+    ]

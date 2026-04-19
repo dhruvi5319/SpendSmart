@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui';
 import { DollarSign, TrendingUp, TrendingDown, Receipt } from 'lucide-react';
 import { ExpenseList } from '@/components/expenses/ExpenseList';
-import { SpendingChart, CategoryChart, PredictionChart } from '@/components/charts';
+import { SpendingChart, CategoryChart, PredictionChart, CashFlowChart } from '@/components/charts';
 import { BudgetRecommendations } from '@/components/budget';
 import { useAuthStore } from '@/stores/auth';
 import { expensesService } from '@/services/expenses';
@@ -137,6 +137,9 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Cash Flow Forecast */}
+      <CashFlowChart daysAhead={30} />
 
       {/* Predictions and Budget Insights */}
       <div className="grid gap-6 lg:grid-cols-2">

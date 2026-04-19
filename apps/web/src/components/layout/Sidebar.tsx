@@ -12,6 +12,8 @@ import {
   LogOut,
   CreditCard,
   Calendar,
+  FileText,
+  Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth';
@@ -20,9 +22,11 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Expenses', href: '/expenses', icon: Receipt },
   { name: 'Goals', href: '/goals', icon: Target },
+  { name: 'Bills', href: '/bills', icon: FileText },
+  { name: 'Owe & Lent', href: '/debts', icon: Users },
+  { name: 'Calendar', href: '/calendar', icon: Calendar },
   { name: 'Investments', href: '/investments', icon: TrendingUp },
   { name: 'Cards', href: '/cards', icon: CreditCard },
-  { name: 'Calendar', href: '/calendar', icon: Calendar },
 ];
 
 const secondaryNavigation = [

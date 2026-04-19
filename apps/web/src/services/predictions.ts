@@ -23,6 +23,28 @@ export interface SpendingForecast {
   summary: ForecastSummary;
 }
 
+export interface CashFlowProjectionPoint {
+  date: string;
+  balance: number;
+  expected_spending: number;
+  bills_due: number;
+  is_danger: boolean;
+  is_warning: boolean;
+}
+
+export interface CashFlowForecast {
+  current_balance: number;
+  projected_end_balance: number;
+  min_balance: number;
+  min_balance_date: string;
+  avg_daily_spending: number;
+  total_bills_upcoming: number;
+  total_projected_spending: number;
+  has_danger_zone: boolean;
+  danger_zone_days: string[];
+  projection: CashFlowProjectionPoint[];
+}
+
 async function ensureAuthToken(): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
   if (session?.access_token) {
@@ -62,5 +84,15 @@ export const predictionsService = {
     return apiClient.get<SpendingForecast>(
       `/api/v1/predictions/spending/category/${categoryId}?${params.toString()}`
     );
+  },
+
+  /**
+   * Get cash flow projection for the next N days
+   */
+  async getCashFlowForecast(daysAhead: number = 30): Promise<CashFlowForecast> {
+    await ensureAuthToken();
+    const params = new URLSearchParams();
+    params.append('days_ahead', daysAhead.toString());
+    return apiClient.get<CashFlowForecast>(`/api/v1/predictions/cashflow?${params.toString()}`);
   },
 };

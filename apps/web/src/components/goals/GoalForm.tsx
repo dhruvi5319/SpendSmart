@@ -12,7 +12,8 @@ const goalSchema = z.object({
   description: z.string().optional(),
   target_amount: z.number().positive('Target must be positive'),
   current_amount: z.number().min(0, 'Amount cannot be negative').optional(),
-  deadline: z.string().optional(),
+  target_date: z.string().optional(),
+  priority: z.number().min(0).optional(),
   icon: z.string().optional(),
   color: z.string().optional(),
 });
@@ -45,7 +46,8 @@ export function GoalForm({ goal, onSuccess, onCancel }: GoalFormProps) {
       description: goal?.description || '',
       target_amount: goal ? Number(goal.target_amount) : undefined,
       current_amount: goal ? Number(goal.current_amount) : 0,
-      deadline: goal?.deadline || '',
+      target_date: goal?.target_date || '',
+      priority: goal?.priority || 0,
     },
   });
 
@@ -59,7 +61,8 @@ export function GoalForm({ goal, onSuccess, onCancel }: GoalFormProps) {
         description: data.description || undefined,
         target_amount: data.target_amount,
         current_amount: data.current_amount,
-        deadline: data.deadline || undefined,
+        target_date: data.target_date || undefined,
+        priority: data.priority,
         icon: selectedIcon,
         color: selectedColor,
       };
@@ -123,7 +126,7 @@ export function GoalForm({ goal, onSuccess, onCancel }: GoalFormProps) {
       <Input
         label="Target Date (optional)"
         type="date"
-        {...register('deadline')}
+        {...register('target_date')}
       />
 
       {/* Icon picker */}
