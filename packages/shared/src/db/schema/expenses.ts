@@ -56,6 +56,9 @@ export const expenses = pgTable('expenses', {
   // Splitwise reference (Phase 3)
   splitwiseExpenseId: bigint('splitwise_expense_id', { mode: 'number' }),
 
+  // Notable purchase flag - user can manually mark one-time big purchases
+  isNotable: boolean('is_notable').default(false),
+
   // Timestamps
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }),

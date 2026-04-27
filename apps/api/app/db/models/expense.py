@@ -32,6 +32,9 @@ class Expense(Base):
     is_recurring = Column(Boolean, default=False)
     recurring_id = Column(UUID(as_uuid=True), nullable=True)  # Link to recurring template
 
+    # Notable purchase flag - user can manually mark one-time big purchases
+    is_notable = Column(Boolean, default=False)
+
     # Receipt and source
     receipt_url = Column(String(500), nullable=True)
     source = Column(String(20), default="manual")  # manual, receipt_scan, csv_import, splitwise

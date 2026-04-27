@@ -36,6 +36,7 @@ class ExpenseCreate(ExpenseBase):
 
     category_id: Optional[UUID] = None
     source: ExpenseSource = ExpenseSource.MANUAL
+    is_notable: bool = Field(default=False, description="Mark as notable one-time purchase")
 
 
 class ExpenseUpdate(BaseModel):
@@ -46,6 +47,7 @@ class ExpenseUpdate(BaseModel):
     expense_date: Optional[date] = None
     category_id: Optional[UUID] = None
     is_household: Optional[bool] = None
+    is_notable: Optional[bool] = None
     notes: Optional[str] = None
     currency: Optional[str] = Field(None, max_length=3)
 
@@ -66,6 +68,7 @@ class ExpenseResponse(ExpenseBase):
     receipt_url: Optional[str]
     source: ExpenseSource
     is_recurring: bool
+    is_notable: bool = False
     ml_category_confidence: Optional[Decimal]
     created_at: datetime
     updated_at: Optional[datetime]

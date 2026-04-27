@@ -18,6 +18,7 @@ const expenseSchema = z.object({
   is_household: z.boolean(),
   household_size: z.number().min(1).max(10).optional(),
   is_recurring: z.boolean(),
+  is_notable: z.boolean(),
   notes: z.string().optional(),
 });
 
@@ -67,6 +68,7 @@ export function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFormProps) 
       is_household: expense?.is_household || false,
       household_size: expense?.household_size || 2,
       is_recurring: expense?.is_recurring || false,
+      is_notable: expense?.is_notable || false,
       notes: expense?.notes || '',
     },
   });
@@ -119,6 +121,7 @@ export function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFormProps) 
         is_household: data.is_household,
         household_size: data.is_household ? data.household_size : 1,
         is_recurring: data.is_recurring,
+        is_notable: data.is_notable,
         notes: data.notes,
       };
 
@@ -258,6 +261,19 @@ export function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFormProps) 
         <Switch
           checked={watch('is_recurring')}
           onCheckedChange={(checked) => setValue('is_recurring', checked)}
+        />
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg border border-purple-200 bg-purple-50 p-4">
+        <div>
+          <p className="font-medium text-gray-900">One-Time Notable Purchase</p>
+          <p className="text-sm text-gray-500">
+            Mark as a big one-time purchase (excluded from daily averages)
+          </p>
+        </div>
+        <Switch
+          checked={watch('is_notable')}
+          onCheckedChange={(checked) => setValue('is_notable', checked)}
         />
       </div>
 

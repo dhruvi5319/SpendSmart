@@ -1,11 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List, Optional
 from uuid import UUID
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 
 from app.db.session import get_db
 from app.db.models.user import User
+from app.db.models.expense import Expense
+from app.db.models.category import Category
 from app.auth.dependencies import get_current_user
 from app.models.expense import (
     ExpenseCreate,
@@ -129,3 +133,49 @@ async def delete_expense(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Expense not found",
         )
+
+
+@router.get("/notable/purchases")
+async def get_notable_purchases(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    days: int = Query(30, ge=7, le=90, description="Days to look back"),
+):
+    """
+    Get notable purchases - one-time expenses manually flagged by the user.
+
+    Returns all expenses marked with is_notable=True within the date range.
+    """
+    start_date = date.today() - timedelta(days=days)
+
+    # Fetch expenses marked as notable
+    result = await db.execute(
+        select(Expense, Category)
+        .outerjoin(Category, Expense.category_id == Category.id)
+        .where(
+            Expense.user_id == current_user.id,
+            Expense.expense_date >= start_date,
+            Expense.is_notable == True,
+        )
+        .order_by(Expense.user_share.desc())
+    )
+    rows = result.all()
+
+    notable = []
+    for expense, category in rows:
+        notable.append({
+            "id": str(expense.id),
+            "description": expense.description,
+            "amount": float(expense.amount),
+            "user_share": float(expense.user_share),
+            "expense_date": expense.expense_date.isoformat(),
+            "category_name": category.name if category else None,
+            "category_icon": category.icon if category else None,
+            "category_color": category.color if category else None,
+            "is_household": expense.is_household,
+        })
+
+    return {
+        "notable_purchases": notable,
+        "total_notable_amount": round(sum(p["user_share"] for p in notable), 2),
+    }

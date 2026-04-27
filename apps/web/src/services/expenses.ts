@@ -17,19 +17,17 @@ export interface Expense {
   is_household: boolean;
   household_size: number;
   is_recurring: boolean;
+  is_notable: boolean;
   recurring_id: string | null;
   receipt_url: string | null;
   source: 'manual' | 'receipt_scan' | 'csv_import' | 'splitwise';
   ml_category_confidence: number | null;
   created_at: string;
   updated_at: string | null;
-  // Joined fields
-  category?: {
-    id: string;
-    name: string;
-    icon: string;
-    color: string;
-  };
+  // Category info (flat fields from backend)
+  category_name: string | null;
+  category_icon: string | null;
+  category_color: string | null;
 }
 
 export interface CreateExpenseInput {
@@ -40,6 +38,7 @@ export interface CreateExpenseInput {
   is_household?: boolean;
   household_size?: number;
   is_recurring?: boolean;
+  is_notable?: boolean;
   notes?: string;
   currency?: string;
   source?: 'manual' | 'receipt_scan' | 'csv_import' | 'splitwise';
@@ -69,6 +68,23 @@ export interface ExpenseSummary {
     category_icon?: string;
     category_color?: string;
   }>;
+}
+
+export interface NotablePurchase {
+  id: string;
+  description: string;
+  amount: number;
+  user_share: number;
+  expense_date: string;
+  category_name: string | null;
+  category_icon: string | null;
+  category_color: string | null;
+  is_household: boolean;
+}
+
+export interface NotablePurchasesResponse {
+  notable_purchases: NotablePurchase[];
+  total_notable_amount: number;
 }
 
 // Helper to get auth token from Supabase session
@@ -199,5 +215,12 @@ export const expensesService = {
         count: cat.count,
       })),
     };
+  },
+
+  /**
+   * Get notable (outlier) purchases - unusually large one-time expenses
+   */
+  async getNotablePurchases(days: number = 30): Promise<NotablePurchasesResponse> {
+    return apiGet<NotablePurchasesResponse>(`/api/v1/expenses/notable/purchases?days=${days}`);
   },
 };
