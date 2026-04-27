@@ -8,6 +8,8 @@
   ],
   "scripts": {
     "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=web",
+    "dev:api": "cd apps/api && python -m uvicorn app.main:app --reload --port 8000",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
@@ -15,7 +17,10 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "db:migrate": "cd apps/api && alembic upgrade head",
-    "db:generate": "cd apps/api && alembic revision --autogenerate -m"
+    "db:generate": "cd apps/api && alembic revision --autogenerate -m",
+    "db:seed": "npx tsx apps/web/src/db/seed.ts",
+    "db:seed:feb": "npx tsx apps/web/src/db/seed-feb.ts",
+    "db:seed:march": "npx tsx apps/web/src/db/seed-march.ts"
   },
   "devDependencies": {
     "prettier": "^3.2.5",
