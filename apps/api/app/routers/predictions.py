@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Optional, List
 from uuid import UUID
+import statistics
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func
@@ -76,6 +77,7 @@ async def get_cashflow_forecast(
     - Current account balances
     - Scheduled bills
     - Historical average daily spending
+    - Expected income (paychecks based on pay frequency)
     - Danger zone detection (when balance goes negative or below threshold)
     """
     today = date.today()
@@ -104,18 +106,55 @@ async def get_cashflow_forecast(
     )
     bills = bills_result.scalars().all()
 
-    # Get historical daily spending average (last 30 days)
+    # Get historical daily spending average (last 30 days) with outlier detection
     thirty_days_ago = today - timedelta(days=30)
-    spending_result = await db.execute(
-        select(func.sum(Expense.user_share))
+
+    # Fetch individual expenses to detect outliers
+    expenses_result = await db.execute(
+        select(Expense.user_share)
         .where(
             Expense.user_id == current_user.id,
             Expense.expense_date >= thirty_days_ago,
             Expense.expense_date <= today,
         )
     )
-    total_spending_30d = spending_result.scalar() or Decimal("0")
-    avg_daily_spending = float(total_spending_30d) / 30
+    expense_amounts = [float(e) for e in expenses_result.scalars().all()]
+
+    if len(expense_amounts) >= 3:
+        # Use IQR method to filter outliers
+        sorted_amounts = sorted(expense_amounts)
+        n = len(sorted_amounts)
+        q1 = sorted_amounts[n // 4]
+        q3 = sorted_amounts[(3 * n) // 4]
+        iqr = q3 - q1
+        upper_bound = q3 + (1.5 * iqr)
+
+        # Filter out outliers (unusually large one-time purchases)
+        normal_expenses = [e for e in expense_amounts if e <= upper_bound]
+        total_spending_30d = sum(normal_expenses)
+    else:
+        # Not enough data for outlier detection, use all expenses
+        total_spending_30d = sum(expense_amounts)
+
+    avg_daily_spending = total_spending_30d / 30
+
+    # Calculate paycheck amount based on pay frequency
+    monthly_income = float(current_user.monthly_income) if current_user.monthly_income else 0
+    pay_frequency = current_user.pay_frequency or "biweekly"
+    next_pay_date = current_user.next_pay_date
+
+    if pay_frequency == "weekly":
+        paycheck_amount = monthly_income / 4
+        pay_interval = timedelta(weeks=1)
+    elif pay_frequency == "biweekly":
+        paycheck_amount = monthly_income / 2
+        pay_interval = timedelta(weeks=2)
+    elif pay_frequency == "semimonthly":
+        paycheck_amount = monthly_income / 2
+        pay_interval = None  # Special handling for 1st and 15th
+    else:  # monthly
+        paycheck_amount = monthly_income
+        pay_interval = timedelta(days=30)
 
     # Build daily projection
     projection = []
@@ -153,6 +192,39 @@ async def get_cashflow_forecast(
 
         return dates
 
+    # Get pay dates in range
+    def get_pay_dates_in_range(start: date, end: date) -> List[date]:
+        """Get all pay dates within the range."""
+        if not next_pay_date or not monthly_income:
+            return []
+
+        dates = []
+
+        if pay_frequency == "semimonthly":
+            # Pay on 1st and 15th of each month
+            current = start
+            while current <= end:
+                if current.day == 1 or current.day == 15:
+                    if current >= today:
+                        dates.append(current)
+                current = current + timedelta(days=1)
+        else:
+            # Regular interval-based pay
+            current = next_pay_date
+            # Move backward to find earliest relevant date
+            while current > start and pay_interval:
+                current = current - pay_interval
+            # Move forward to first date in range
+            while current < start and pay_interval:
+                current = current + pay_interval
+            # Collect all dates in range
+            while current <= end and pay_interval:
+                if current >= today:
+                    dates.append(current)
+                current = current + pay_interval
+
+        return dates
+
     # Create a map of bill amounts by date
     bills_by_date: dict[date, float] = {}
     for bill in bills:
@@ -160,6 +232,14 @@ async def get_cashflow_forecast(
             if bill_date not in bills_by_date:
                 bills_by_date[bill_date] = 0
             bills_by_date[bill_date] += float(bill.amount)
+
+    # Create a map of income by date
+    income_by_date: dict[date, float] = {}
+    pay_dates = get_pay_dates_in_range(today, end_date)
+    for pay_date in pay_dates:
+        income_by_date[pay_date] = paycheck_amount
+
+    total_income_upcoming = sum(income_by_date.values())
 
     # Generate daily projections
     for day_offset in range(days_ahead + 1):
@@ -171,8 +251,12 @@ async def get_cashflow_forecast(
         # Bills due on this day
         bills_due = bills_by_date.get(current_date, 0)
 
+        # Income received on this day
+        income_received = income_by_date.get(current_date, 0)
+
         # Update balance
         if day_offset > 0:
+            running_balance += income_received
             running_balance -= (expected_spending + bills_due)
 
         # Check for danger zone
@@ -187,6 +271,7 @@ async def get_cashflow_forecast(
             "balance": round(running_balance, 2),
             "expected_spending": round(expected_spending, 2),
             "bills_due": round(bills_due, 2),
+            "income_received": round(income_received, 2),
             "is_danger": is_danger,
             "is_warning": is_warning,
         })
@@ -206,8 +291,11 @@ async def get_cashflow_forecast(
         "min_balance_date": min_balance_date,
         "avg_daily_spending": round(avg_daily_spending, 2),
         "total_bills_upcoming": round(total_bills, 2),
+        "total_income_upcoming": round(total_income_upcoming, 2),
         "total_projected_spending": round(total_projected_spending, 2),
         "has_danger_zone": len(danger_zone_days) > 0,
         "danger_zone_days": danger_zone_days,
+        "pay_dates": [d.isoformat() for d in pay_dates],
+        "paycheck_amount": round(paycheck_amount, 2),
         "projection": projection,
     }

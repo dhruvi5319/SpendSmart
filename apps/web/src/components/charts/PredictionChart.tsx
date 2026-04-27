@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Minus, AlertCircle } from 'lucide-react';
 import {
-  LineChart,
   Line,
   XAxis,
   YAxis,
@@ -134,6 +133,8 @@ export function PredictionChart({ className }: PredictionChartProps) {
   const chartData = data.forecast.map((point) => ({
     date: point.date,
     predicted: point.predicted,
+    variable: point.variable || point.predicted,
+    bills: point.bills || 0,
     lower: point.lower_bound,
     upper: point.upper_bound,
     range: point.upper_bound && point.lower_bound
@@ -160,18 +161,29 @@ export function PredictionChart({ className }: PredictionChartProps) {
             <p className="text-lg font-semibold text-gray-900">
               {formatCurrency(data.summary.predicted_monthly_total)}
             </p>
+            {data.summary.predicted_bills !== undefined && data.summary.predicted_variable_spending !== undefined && (
+              <p className="text-[10px] text-gray-400">
+                {formatCurrency(data.summary.predicted_variable_spending)} variable + {formatCurrency(data.summary.predicted_bills)} bills
+              </p>
+            )}
           </div>
           <div>
             <p className="text-xs text-gray-500">Daily Average</p>
             <p className="text-lg font-semibold text-gray-900">
               {formatCurrency(data.summary.predicted_daily_average)}
             </p>
+            <p className="text-[10px] text-gray-400">variable spending</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500">Current Avg</p>
+            <p className="text-xs text-gray-500">Monthly Bills</p>
             <p className="text-lg font-semibold text-gray-900">
-              {formatCurrency(data.summary.current_daily_average)}
+              {formatCurrency(data.summary.predicted_bills || 0)}
             </p>
+            {data.bills_breakdown && data.bills_breakdown.length > 0 && (
+              <p className="text-[10px] text-gray-400">
+                {data.bills_breakdown.length} active bill{data.bills_breakdown.length !== 1 ? 's' : ''}
+              </p>
+            )}
           </div>
           <div>
             <p className="text-xs text-gray-500">Historical Monthly</p>
@@ -201,7 +213,12 @@ export function PredictionChart({ className }: PredictionChartProps) {
                 width={50}
               />
               <Tooltip
-                formatter={(value: number) => [formatCurrency(value), 'Predicted']}
+                formatter={(value: number, name: string) => {
+                  if (name === 'predicted') {
+                    return [formatCurrency(value), 'Predicted Spending'];
+                  }
+                  return [formatCurrency(value), name];
+                }}
                 labelFormatter={(label) => formatDate(label)}
                 contentStyle={{
                   backgroundColor: 'white',
@@ -216,13 +233,30 @@ export function PredictionChart({ className }: PredictionChartProps) {
                 fillOpacity={0.1}
                 stroke="none"
               />
-              {/* Prediction line */}
+              {/* Total prediction line (includes bills on due dates) */}
               <Line
                 type="monotone"
                 dataKey="predicted"
                 stroke="#4f46e5"
                 strokeWidth={2}
-                dot={false}
+                dot={(props) => {
+                  // Show dot on days with bills
+                  const { cx, cy, payload } = props;
+                  if (payload.bills > 0) {
+                    return (
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={6}
+                        fill="#f97316"
+                        stroke="#fff"
+                        strokeWidth={2}
+                      />
+                    );
+                  }
+                  return <circle cx={cx} cy={cy} r={0} />;
+                }}
+                name="predicted"
               />
             </ComposedChart>
           </ResponsiveContainer>
