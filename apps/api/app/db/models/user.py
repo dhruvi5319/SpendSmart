@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Time
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Time, Numeric, Date
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime, time
@@ -17,6 +17,9 @@ class User(Base):
     display_name = Column(String(100), nullable=True)
     primary_currency = Column(String(3), default="USD")
     household_size = Column(Integer, default=1)
+    monthly_income = Column(Numeric(14, 2), nullable=True)  # Monthly income for budget calculations
+    pay_frequency = Column(String(20), default="biweekly")  # weekly, biweekly, semimonthly, monthly
+    next_pay_date = Column(Date, nullable=True)  # Next expected pay date
     reminder_time = Column(Time, default=time(21, 0))  # 9 PM default
     reminder_enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
