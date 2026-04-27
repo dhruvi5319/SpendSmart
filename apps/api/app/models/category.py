@@ -8,7 +8,7 @@ class CategoryBase(BaseModel):
     """Base category schema."""
 
     name: str = Field(..., min_length=1, max_length=50)
-    icon: Optional[str] = Field(None, max_length=10)
+    icon: Optional[str] = Field(None, max_length=50)  # Icons like 'graduation-cap', 'shopping-cart'
     color: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
 
 
@@ -23,7 +23,7 @@ class CategoryUpdate(BaseModel):
     """Schema for updating a category. All fields optional."""
 
     name: Optional[str] = Field(None, min_length=1, max_length=50)
-    icon: Optional[str] = Field(None, max_length=10)
+    icon: Optional[str] = Field(None, max_length=50)
     color: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
     budget_amount: Optional[Decimal] = Field(None, gt=0)
     budget_currency: Optional[str] = Field(None, max_length=3)
@@ -33,7 +33,7 @@ class CategoryResponse(CategoryBase):
     """Schema for category responses."""
 
     id: UUID
-    user_id: UUID
+    user_id: Optional[UUID] = None  # Default categories have NULL user_id
     is_default: bool
     budget_amount: Optional[Decimal] = None
     budget_currency: str

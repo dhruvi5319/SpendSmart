@@ -14,6 +14,7 @@ import {
   Calendar,
   FileText,
   Users,
+  Wallet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth';
@@ -21,6 +22,7 @@ import { useAuthStore } from '@/stores/auth';
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Expenses', href: '/expenses', icon: Receipt },
+  { name: 'Accounts', href: '/accounts', icon: Wallet },
   { name: 'Goals', href: '/goals', icon: Target },
   { name: 'Bills', href: '/bills', icon: FileText },
   { name: 'Owe & Lent', href: '/debts', icon: Users },

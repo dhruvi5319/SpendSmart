@@ -6,12 +6,14 @@ import { DollarSign, TrendingUp, TrendingDown, Receipt } from 'lucide-react';
 import { ExpenseList } from '@/components/expenses/ExpenseList';
 import { SpendingChart, CategoryChart, PredictionChart, CashFlowChart } from '@/components/charts';
 import { BudgetRecommendations } from '@/components/budget';
+import { NotablePurchasesCard } from '@/components/dashboard/NotablePurchasesCard';
 import { useAuthStore } from '@/stores/auth';
 import { expensesService } from '@/services/expenses';
+import { profileService } from '@/services/profile';
 
 interface DashboardStats {
   totalSpent: number;
-  monthlyBudget: number;
+  monthlyIncome: number | null;
   savingsRate: number;
   transactionCount: number;
 }
@@ -20,7 +22,7 @@ export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const [stats, setStats] = useState<DashboardStats>({
     totalSpent: 0,
-    monthlyBudget: 5000,
+    monthlyIncome: null,
     savingsRate: 0,
     transactionCount: 0,
   });
@@ -34,16 +36,21 @@ export default function DashboardPage() {
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
-        // Fetch expense summary from Supabase
-        const summary = await expensesService.getExpenseSummary(startOfMonth, endOfMonth);
+        // Fetch expense summary and profile in parallel
+        const [summary, profile] = await Promise.all([
+          expensesService.getExpenseSummary(startOfMonth, endOfMonth),
+          profileService.getProfile().catch(() => null),
+        ]);
 
-        const monthlyBudget = 5000; // TODO: Get from user settings
+        const monthlyIncome = profile?.monthly_income || null;
         const totalSpent = summary.totalUserShare;
-        const savingsRate = monthlyBudget > 0 ? Math.max(0, ((monthlyBudget - totalSpent) / monthlyBudget) * 100) : 0;
+        const savingsRate = monthlyIncome && monthlyIncome > 0
+          ? Math.max(0, ((monthlyIncome - totalSpent) / monthlyIncome) * 100)
+          : 0;
 
         setStats({
           totalSpent,
-          monthlyBudget,
+          monthlyIncome,
           savingsRate: Math.round(savingsRate * 10) / 10,
           transactionCount: summary.transactionCount,
         });
@@ -66,15 +73,17 @@ export default function DashboardPage() {
       bgColor: 'bg-blue-100',
     },
     {
-      title: 'Monthly Budget',
-      value: `$${(stats?.monthlyBudget ?? 0).toLocaleString()}`,
+      title: 'Monthly Income',
+      value: stats?.monthlyIncome ? `$${stats.monthlyIncome.toLocaleString()}` : 'Not set',
+      subtext: !stats?.monthlyIncome ? 'Set in Settings' : undefined,
       icon: TrendingUp,
       color: 'text-green-600',
       bgColor: 'bg-green-100',
     },
     {
       title: 'Savings Rate',
-      value: `${stats?.savingsRate ?? 0}%`,
+      value: stats?.monthlyIncome ? `${stats?.savingsRate ?? 0}%` : '—',
+      subtext: !stats?.monthlyIncome ? 'Set income first' : undefined,
       icon: TrendingDown,
       color: 'text-purple-600',
       bgColor: 'bg-purple-100',
@@ -107,6 +116,9 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-500">{stat.title}</p>
                   <p className="mt-1 text-2xl font-bold text-gray-900">{stat.value}</p>
+                  {stat.subtext && (
+                    <p className="mt-1 text-xs text-gray-400">{stat.subtext}</p>
+                  )}
                 </div>
                 <div className={`rounded-full p-3 ${stat.bgColor}`}>
                   <stat.icon className={`h-6 w-6 ${stat.color}`} />
@@ -146,6 +158,9 @@ export default function DashboardPage() {
         <PredictionChart />
         <BudgetRecommendations />
       </div>
+
+      {/* Notable Purchases */}
+      <NotablePurchasesCard />
 
       {/* Recent Transactions */}
       <Card>

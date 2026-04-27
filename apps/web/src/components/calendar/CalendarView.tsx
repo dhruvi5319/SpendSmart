@@ -351,19 +351,19 @@ export function CalendarView({ onDateClick }: CalendarViewProps) {
                           <div
                             className="flex h-8 w-8 items-center justify-center rounded-lg text-sm"
                             style={{
-                              backgroundColor: expense.category?.color
-                                ? `${expense.category.color}20`
+                              backgroundColor: expense.category_color
+                                ? `${expense.category_color}20`
                                 : '#e5e7eb',
                             }}
                           >
-                            {expense.category?.icon || '📝'}
+                            {expense.category_icon || '📝'}
                           </div>
                           <div>
                             <p className="font-medium text-gray-900">
                               {expense.description}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {expense.category?.name || 'Uncategorized'}
+                              {expense.category_name || 'Uncategorized'}
                             </p>
                           </div>
                         </div>

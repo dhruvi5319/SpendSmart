@@ -137,16 +137,22 @@ export function CashFlowChart({ daysAhead = 30 }: CashFlowChartProps) {
               {formatCurrency(data.balance)}
             </span>
           </p>
+          {data.income_received > 0 && (
+            <p className="flex items-center justify-between gap-4">
+              <span className="text-gray-500">Paycheck:</span>
+              <span className="font-medium text-green-600">+{formatCurrency(data.income_received)}</span>
+            </p>
+          )}
           {data.expected_spending > 0 && (
             <p className="flex items-center justify-between gap-4">
               <span className="text-gray-500">Expected Spending:</span>
-              <span className="text-gray-700">{formatCurrency(data.expected_spending)}</span>
+              <span className="text-gray-700">-{formatCurrency(data.expected_spending)}</span>
             </p>
           )}
           {data.bills_due > 0 && (
             <p className="flex items-center justify-between gap-4">
               <span className="text-gray-500">Bills Due:</span>
-              <span className="text-orange-600">{formatCurrency(data.bills_due)}</span>
+              <span className="text-orange-600">-{formatCurrency(data.bills_due)}</span>
             </p>
           )}
         </div>
@@ -178,7 +184,7 @@ export function CashFlowChart({ daysAhead = 30 }: CashFlowChartProps) {
       </CardHeader>
       <CardContent>
         {/* Summary Stats */}
-        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-5">
           <div className="rounded-lg border bg-gray-50 p-3">
             <p className="text-xs text-gray-500">Current Balance</p>
             <p className="text-lg font-semibold text-gray-900">
@@ -191,10 +197,21 @@ export function CashFlowChart({ daysAhead = 30 }: CashFlowChartProps) {
               {formatCurrency(forecast.projected_end_balance)}
             </p>
           </div>
-          <div className="rounded-lg border bg-gray-50 p-3">
+          <div className="rounded-lg border bg-green-50 p-3">
+            <p className="text-xs text-gray-500">Expected Income</p>
+            <p className="text-lg font-semibold text-green-600">
+              +{formatCurrency(forecast.total_income_upcoming || 0)}
+            </p>
+            {forecast.pay_dates && forecast.pay_dates.length > 0 && (
+              <p className="text-xs text-green-500 mt-1">
+                {forecast.pay_dates.length} paycheck{forecast.pay_dates.length > 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
+          <div className="rounded-lg border bg-orange-50 p-3">
             <p className="text-xs text-gray-500">Upcoming Bills</p>
             <p className="text-lg font-semibold text-orange-600">
-              {formatCurrency(forecast.total_bills_upcoming)}
+              -{formatCurrency(forecast.total_bills_upcoming)}
             </p>
           </div>
           <div className="rounded-lg border bg-gray-50 p-3">

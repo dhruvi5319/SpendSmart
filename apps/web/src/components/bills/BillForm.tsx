@@ -130,19 +130,12 @@ export function BillForm({ bill, onClose, onSuccess }: BillFormProps) {
 
             {/* Frequency */}
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Frequency
-              </label>
               <Select
+                label="Frequency"
                 value={formData.frequency}
                 onChange={(e) => setFormData({ ...formData, frequency: e.target.value as BillFrequency })}
-              >
-                {frequencyOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </Select>
+                options={frequencyOptions}
+              />
             </div>
 
             {/* Description */}
@@ -179,7 +172,7 @@ export function BillForm({ bill, onClose, onSuccess }: BillFormProps) {
               </div>
               <Switch
                 checked={formData.is_autopay}
-                onChange={(checked) => setFormData({ ...formData, is_autopay: checked })}
+                onCheckedChange={(checked) => setFormData({ ...formData, is_autopay: checked })}
               />
             </div>
 

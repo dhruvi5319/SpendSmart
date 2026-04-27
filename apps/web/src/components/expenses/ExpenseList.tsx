@@ -20,7 +20,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { expensesService, type Expense } from '@/services/expenses';
+import { expensesService, type Expense, type NotablePurchasesResponse } from '@/services/expenses';
 
 const iconMap: Record<string, typeof ShoppingCart> = {
   'shopping-cart': ShoppingCart,
@@ -46,6 +46,7 @@ interface ExpenseListProps {
 
 export function ExpenseList({ limit, onEdit, refreshTrigger }: ExpenseListProps) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [notableIds, setNotableIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,8 +55,17 @@ export function ExpenseList({ limit, onEdit, refreshTrigger }: ExpenseListProps)
       setIsLoading(true);
       setError(null);
       try {
-        const data = await expensesService.getExpenses(undefined, limit || 50);
+        // Fetch expenses and notable purchases in parallel
+        const [data, notable] = await Promise.all([
+          expensesService.getExpenses(undefined, limit || 50),
+          expensesService.getNotablePurchases(30).catch(() => null),
+        ]);
         setExpenses(data);
+
+        // Create a set of notable purchase IDs for quick lookup
+        if (notable?.notable_purchases) {
+          setNotableIds(new Set(notable.notable_purchases.map(p => p.id)));
+        }
       } catch (err) {
         console.error('Failed to fetch expenses:', err);
         setError('Failed to load expenses. Please try again.');
@@ -95,9 +105,10 @@ export function ExpenseList({ limit, onEdit, refreshTrigger }: ExpenseListProps)
   return (
     <div className="divide-y">
       {expenses.map((expense) => {
-        const iconName = expense.category?.icon || 'more-horizontal';
+        const iconName = expense.category_icon || 'more-horizontal';
         const Icon = iconMap[iconName] || MoreHorizontal;
-        const color = expense.category?.color || '#6b7280';
+        const color = expense.category_color || '#6b7280';
+        const isNotable = notableIds.has(expense.id);
 
         return (
           <div
@@ -113,11 +124,18 @@ export function ExpenseList({ limit, onEdit, refreshTrigger }: ExpenseListProps)
             </div>
 
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-gray-900 truncate">
-                {expense.description}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="font-medium text-gray-900 truncate">
+                  {expense.description}
+                </p>
+                {isNotable && (
+                  <span className="shrink-0 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
+                    Large Purchase
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2 text-sm text-gray-500">
-                <span>{expense.category?.name || 'Uncategorized'}</span>
+                <span>{expense.category_name || 'Uncategorized'}</span>
                 <span>•</span>
                 <span>
                   {formatDistanceToNow(new Date(expense.expense_date), { addSuffix: true })}

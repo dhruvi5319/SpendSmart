@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, update
+from sqlalchemy import select, and_, or_, update
 from typing import List, Optional
 from uuid import UUID
 
@@ -15,10 +15,16 @@ class CategoryService:
         self.db = db
 
     async def get_all(self, user_id: UUID) -> List[Category]:
-        """Get all categories for a user."""
+        """Get all categories for a user (default + custom)."""
+        # Return both default categories (user_id is NULL) and user's custom categories
         query = (
             select(Category)
-            .where(Category.user_id == user_id)
+            .where(
+                or_(
+                    Category.user_id == None,  # Default categories
+                    Category.user_id == user_id,  # User's custom categories
+                )
+            )
             .order_by(Category.is_default.desc(), Category.name)
         )
         result = await self.db.execute(query)
