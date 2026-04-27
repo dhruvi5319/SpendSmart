@@ -4,7 +4,10 @@ import postgres from 'postgres';
 import { sql } from 'drizzle-orm';
 
 async function migrate() {
-  const connectionString = process.env.DATABASE_URL || 'postgresql://postgres.ddbnbqnqophiatguylxr:***REMOVED***@aws-1-us-west-2.pooler.supabase.com:5432/postgres';
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('DATABASE_URL environment variable is required');
+  }
   const client = postgres(connectionString, { prepare: false });
   const db = drizzle(client);
 

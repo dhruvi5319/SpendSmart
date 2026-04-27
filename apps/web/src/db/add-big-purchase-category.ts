@@ -7,7 +7,10 @@ import { eq } from 'drizzle-orm';
 const USER_ID = 'd1afbfc3-a960-4b6d-9039-87c2023601bf';
 
 async function addCategory() {
-  const connectionString = process.env.DATABASE_URL || 'postgresql://postgres.ddbnbqnqophiatguylxr:***REMOVED***@aws-1-us-west-2.pooler.supabase.com:5432/postgres';
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('DATABASE_URL environment variable is required');
+  }
   const client = postgres(connectionString, { prepare: false });
   const db = drizzle(client);
 
