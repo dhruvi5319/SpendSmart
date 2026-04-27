@@ -15,6 +15,13 @@
       "when": 1776563235358,
       "tag": "0001_lame_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776995045477,
+      "tag": "0002_fuzzy_vulture",
+      "breakpoints": true
     }
   ]
 }
