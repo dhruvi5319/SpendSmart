@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/v1/budget", tags=["Budget"])
 
 @router.get("/recommendations")
 async def get_budget_recommendations(
-    monthly_income: Optional[float] = Query(None, ge=0, description="Monthly income (optional, will estimate if not provided)"),
+    monthly_income: Optional[float] = Query(None, ge=0, description="Monthly income (optional, uses profile setting if not provided)"),
     months: int = Query(3, ge=1, le=12, description="Months of history to analyze"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -30,12 +30,18 @@ async def get_budget_recommendations(
     - 30% for wants (entertainment, dining, shopping)
     - 20% for savings/investments
 
-    If monthly_income is not provided, it will be estimated based on spending patterns.
+    If monthly_income is not provided, uses the value from user's profile settings.
+    If not set in profile, it will be estimated based on spending patterns.
     """
+    # Use provided income, or fall back to user's profile setting
+    income = monthly_income
+    if income is None and current_user.monthly_income:
+        income = float(current_user.monthly_income)
+
     service = BudgetService(db)
     return await service.get_recommendations(
         user_id=current_user.id,
-        monthly_income=monthly_income,
+        monthly_income=income,
         months=months,
     )
 

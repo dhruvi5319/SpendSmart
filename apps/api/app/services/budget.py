@@ -4,14 +4,19 @@ Service for budget recommendations and analysis.
 
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, List, Tuple
 from uuid import UUID
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db.models.expense import Expense
 from ..db.models.category import Category
+from ..db.models.bill import Bill
+
+
+# Categories to exclude from budget analysis (one-time big purchases)
+EXCLUDED_CATEGORY_NAMES = {'Big Purchases'}
 
 
 class BudgetService:
@@ -25,14 +30,104 @@ class BudgetService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def _get_excluded_category_ids(self) -> set:
+        """Get category IDs to exclude from budget analysis (e.g., Big Purchases)."""
+        result = await self.db.execute(
+            select(Category.id).where(Category.name.in_(EXCLUDED_CATEGORY_NAMES))
+        )
+        return {row[0] for row in result.all()}
+
+    async def _get_big_purchase_total(self, user_id: UUID, months: int) -> float:
+        """Get total spending in excluded categories (Big Purchases)."""
+        excluded_ids = await self._get_excluded_category_ids()
+        if not excluded_ids:
+            return 0.0
+
+        end_date = date.today()
+        start_date = end_date - timedelta(days=months * 30)
+
+        result = await self.db.execute(
+            select(func.sum(Expense.user_share)).where(
+                and_(
+                    Expense.user_id == user_id,
+                    Expense.expense_date >= start_date,
+                    Expense.expense_date <= end_date,
+                    Expense.category_id.in_(excluded_ids),
+                )
+            )
+        )
+        return float(result.scalar() or 0)
+
+    async def _get_monthly_bills_total(self, user_id: UUID) -> float:
+        """Get total monthly bills amount."""
+        result = await self.db.execute(
+            select(Bill).where(
+                and_(
+                    Bill.user_id == user_id,
+                    Bill.is_active == True,
+                )
+            )
+        )
+        bills = result.scalars().all()
+
+        monthly_total = 0.0
+        for bill in bills:
+            amount = float(bill.amount)
+            if bill.frequency == "weekly":
+                monthly_total += amount * 4
+            elif bill.frequency == "biweekly":
+                monthly_total += amount * 2
+            elif bill.frequency == "monthly":
+                monthly_total += amount
+            elif bill.frequency == "quarterly":
+                monthly_total += amount / 3
+            elif bill.frequency == "yearly":
+                monthly_total += amount / 12
+            else:
+                monthly_total += amount  # Default to monthly
+
+        return monthly_total
+
     async def get_spending_by_category(
         self,
         user_id: UUID,
         months: int = 3,
-    ) -> list[dict]:
-        """Get average monthly spending by category."""
+        exclude_big_purchases: bool = True,
+    ) -> Tuple[list[dict], float]:
+        """
+        Get average monthly spending by category.
+
+        Args:
+            exclude_big_purchases: If True, excludes "Big Purchases" category
+
+        Returns:
+            Tuple of (category_spending_list, big_purchases_total)
+        """
         end_date = date.today()
         start_date = end_date - timedelta(days=months * 30)
+
+        # Get big purchases total for reporting
+        big_purchases_total = 0.0
+        excluded_category_ids = set()
+        if exclude_big_purchases:
+            excluded_category_ids = await self._get_excluded_category_ids()
+            big_purchases_total = await self._get_big_purchase_total(user_id, months)
+
+        # Build base query
+        conditions = [
+            Expense.user_id == user_id,
+            Expense.expense_date >= start_date,
+            Expense.expense_date <= end_date,
+        ]
+
+        # Exclude Big Purchases category if requested
+        if exclude_big_purchases and excluded_category_ids:
+            conditions.append(
+                or_(
+                    Expense.category_id == None,
+                    ~Expense.category_id.in_(excluded_category_ids),
+                )
+            )
 
         query = (
             select(
@@ -44,13 +139,7 @@ class BudgetService:
                 func.count(Expense.id).label('transaction_count'),
             )
             .join(Expense, Expense.category_id == Category.id)
-            .where(
-                and_(
-                    Expense.user_id == user_id,
-                    Expense.expense_date >= start_date,
-                    Expense.expense_date <= end_date,
-                )
-            )
+            .where(and_(*conditions))
             .group_by(Category.id, Category.name, Category.icon, Category.color)
             .order_by(func.sum(Expense.user_share).desc())
         )
@@ -58,7 +147,7 @@ class BudgetService:
         result = await self.db.execute(query)
         rows = result.all()
 
-        return [
+        category_list = [
             {
                 'category_id': str(row.id),
                 'category_name': row.name,
@@ -70,6 +159,8 @@ class BudgetService:
             }
             for row in rows
         ]
+
+        return category_list, big_purchases_total
 
     async def get_recommendations(
         self,
@@ -84,17 +175,26 @@ class BudgetService:
         - 50% for needs (housing, utilities, groceries, etc.)
         - 30% for wants (entertainment, dining out, shopping)
         - 20% for savings/debt repayment
-        """
-        category_spending = await self.get_spending_by_category(user_id, months)
 
-        if not category_spending:
+        Note: Large one-time purchases (outliers) are excluded from the
+        monthly average calculation to give a more accurate picture of
+        regular spending habits.
+        """
+        category_spending, big_purchases_total = await self.get_spending_by_category(user_id, months)
+
+        # Get monthly bills total
+        monthly_bills = await self._get_monthly_bills_total(user_id)
+
+        if not category_spending and monthly_bills == 0:
             return {
                 'has_data': False,
                 'message': 'Not enough spending data. Keep tracking your expenses!',
                 'recommendations': [],
             }
 
-        total_spent = sum(c['monthly_average'] for c in category_spending)
+        # Total monthly spending = expense averages + bills
+        expense_total = sum(c['monthly_average'] for c in category_spending)
+        total_spent = expense_total + monthly_bills
 
         # If no income provided, estimate based on spending
         if not monthly_income:
@@ -107,7 +207,8 @@ class BudgetService:
         ideal_savings = monthly_income * 0.20
 
         # Categorize spending
-        needs_total = 0.0
+        # Bills (rent, car, insurance) are counted as "needs"
+        needs_total = monthly_bills
         wants_total = 0.0
         uncategorized_total = 0.0
 
@@ -205,9 +306,12 @@ class BudgetService:
             'summary': {
                 'monthly_income': round(monthly_income, 2),
                 'monthly_spending': round(total_spent, 2),
+                'monthly_bills': round(monthly_bills, 2),
+                'monthly_expenses': round(expense_total, 2),
                 'savings_rate': round(savings_rate, 1),
                 'needs_percent': round(needs_percent, 1),
                 'wants_percent': round(wants_percent, 1),
+                'big_purchases_excluded': round(big_purchases_total / months, 2) if big_purchases_total > 0 else 0,
             },
             'ideal_allocation': {
                 'needs': round(ideal_needs, 2),
