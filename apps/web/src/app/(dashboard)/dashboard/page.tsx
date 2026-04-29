@@ -98,30 +98,30 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
           Welcome back, {user?.user_metadata?.display_name || 'User'}!
         </h1>
-        <p className="text-gray-500">Here's your financial overview for this month.</p>
+        <p className="text-sm sm:text-base text-gray-500">Here's your financial overview for this month.</p>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {statCards.map((stat) => (
           <Card key={stat.title}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">{stat.title}</p>
-                  <p className="mt-1 text-2xl font-bold text-gray-900">{stat.value}</p>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-gray-500 truncate">{stat.title}</p>
+                  <p className="mt-1 text-lg sm:text-2xl font-bold text-gray-900 truncate">{stat.value}</p>
                   {stat.subtext && (
-                    <p className="mt-1 text-xs text-gray-400">{stat.subtext}</p>
+                    <p className="mt-1 text-[10px] sm:text-xs text-gray-400">{stat.subtext}</p>
                   )}
                 </div>
-                <div className={`rounded-full p-3 ${stat.bgColor}`}>
-                  <stat.icon className={`h-6 w-6 ${stat.color}`} />
+                <div className={`shrink-0 rounded-full p-2 sm:p-3 ${stat.bgColor}`}>
+                  <stat.icon className={`h-4 w-4 sm:h-6 sm:w-6 ${stat.color}`} />
                 </div>
               </div>
             </CardContent>
