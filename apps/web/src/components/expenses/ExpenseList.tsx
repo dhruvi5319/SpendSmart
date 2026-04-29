@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
 import {
   ShoppingCart,
   Utensils,
@@ -136,9 +136,9 @@ export function ExpenseList({ limit, onEdit, refreshTrigger }: ExpenseListProps)
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 flex-wrap">
                 <span className="truncate max-w-[80px] sm:max-w-none">{expense.category_name || 'Uncategorized'}</span>
-                <span className="hidden sm:inline">•</span>
-                <span className="hidden sm:inline">
-                  {formatDistanceToNow(new Date(expense.expense_date), { addSuffix: true })}
+                <span>•</span>
+                <span>
+                  {format(new Date(expense.expense_date), 'MMM d, yyyy')}
                 </span>
                 {expense.is_household && (
                   <>
