@@ -83,11 +83,12 @@ class ExpenseService:
         self,
         user_id: UUID,
         data: ExpenseCreate,
-        household_size: int = 1,
     ) -> Expense:
         """Create a new expense."""
-        # Calculate user's share
+        # Calculate user's share based on household_size from the expense
         amount = data.amount
+        household_size = data.household_size if data.is_household else 1
+
         if data.is_household and household_size > 1:
             user_share = Decimal(str(amount)) / Decimal(str(household_size))
             user_share = round(user_share, 2)
@@ -120,7 +121,6 @@ class ExpenseService:
         id: UUID,
         user_id: UUID,
         data: ExpenseUpdate,
-        household_size: int = 1,
     ) -> Optional[Expense]:
         """Update an expense."""
         expense = await self.get_by_id(id=id, user_id=user_id)
@@ -132,10 +132,11 @@ class ExpenseService:
         for key, value in update_data.items():
             setattr(expense, key, value)
 
-        # Recalculate user_share if amount or is_household changed
-        if "amount" in update_data or "is_household" in update_data:
+        # Recalculate user_share if amount, is_household, or household_size changed
+        if "amount" in update_data or "is_household" in update_data or "household_size" in update_data:
             amount = expense.amount
             is_household = expense.is_household
+            household_size = expense.household_size or 1
             if is_household and household_size > 1:
                 expense.user_share = round(
                     Decimal(str(amount)) / Decimal(str(household_size)), 2

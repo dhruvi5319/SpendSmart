@@ -75,7 +75,6 @@ async def create_expense(
     return await service.create(
         user_id=current_user.id,
         data=data,
-        household_size=current_user.household_size,
     )
 
 
@@ -109,7 +108,6 @@ async def update_expense(
         id=expense_id,
         user_id=current_user.id,
         data=data,
-        household_size=current_user.household_size,
     )
     if not expense:
         raise HTTPException(

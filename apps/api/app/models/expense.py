@@ -37,6 +37,7 @@ class ExpenseCreate(ExpenseBase):
     category_id: Optional[UUID] = None
     source: ExpenseSource = ExpenseSource.MANUAL
     is_notable: bool = Field(default=False, description="Mark as notable one-time purchase")
+    household_size: int = Field(default=1, ge=1, le=10, description="Number of people splitting this expense")
 
 
 class ExpenseUpdate(BaseModel):
@@ -50,6 +51,7 @@ class ExpenseUpdate(BaseModel):
     is_notable: Optional[bool] = None
     notes: Optional[str] = None
     currency: Optional[str] = Field(None, max_length=3)
+    household_size: Optional[int] = Field(None, ge=1, le=10, description="Number of people splitting this expense")
 
     @field_validator("amount")
     @classmethod
@@ -69,6 +71,7 @@ class ExpenseResponse(ExpenseBase):
     source: ExpenseSource
     is_recurring: bool
     is_notable: bool = False
+    household_size: int = 1
     ml_category_confidence: Optional[Decimal]
     created_at: datetime
     updated_at: Optional[datetime]

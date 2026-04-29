@@ -29,6 +29,7 @@ class Expense(Base):
     # Date and categorization
     expense_date = Column(Date, nullable=False)
     is_household = Column(Boolean, default=False)
+    household_size = Column(Numeric(2, 0), default=1)  # Number of people splitting this expense
     is_recurring = Column(Boolean, default=False)
     recurring_id = Column(UUID(as_uuid=True), nullable=True)  # Link to recurring template
 
