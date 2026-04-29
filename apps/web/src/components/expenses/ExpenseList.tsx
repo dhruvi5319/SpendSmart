@@ -113,51 +113,51 @@ export function ExpenseList({ limit, onEdit, refreshTrigger }: ExpenseListProps)
         return (
           <div
             key={expense.id}
-            className="flex items-center gap-4 py-4 first:pt-0 last:pb-0 cursor-pointer hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"
+            className="flex items-center gap-3 sm:gap-4 py-3 sm:py-4 first:pt-0 last:pb-0 cursor-pointer hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"
             onClick={() => onEdit?.(expense)}
           >
             <div
-              className="rounded-full p-2"
+              className="shrink-0 rounded-full p-2"
               style={{ backgroundColor: `${color}20`, color: color }}
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
 
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="font-medium text-gray-900 truncate">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-medium text-gray-900 truncate text-sm sm:text-base">
                   {expense.description}
                 </p>
                 {isNotable && (
                   <span className="shrink-0 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
-                    Large Purchase
+                    Large
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <span>{expense.category_name || 'Uncategorized'}</span>
-                <span>•</span>
-                <span>
+              <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 flex-wrap">
+                <span className="truncate max-w-[80px] sm:max-w-none">{expense.category_name || 'Uncategorized'}</span>
+                <span className="hidden sm:inline">•</span>
+                <span className="hidden sm:inline">
                   {formatDistanceToNow(new Date(expense.expense_date), { addSuffix: true })}
                 </span>
                 {expense.is_household && (
                   <>
-                    <span>•</span>
+                    <span className="hidden sm:inline">•</span>
                     <span className="flex items-center gap-1">
                       <Users className="h-3 w-3" />
-                      Shared ({expense.household_size})
+                      <span className="hidden sm:inline">Shared</span> ({expense.household_size})
                     </span>
                   </>
                 )}
               </div>
             </div>
 
-            <div className="text-right">
-              <p className="font-semibold text-gray-900">
+            <div className="text-right shrink-0">
+              <p className="font-semibold text-gray-900 text-sm sm:text-base">
                 ${Number(expense.user_share).toFixed(2)}
               </p>
               {expense.is_household && expense.amount !== expense.user_share && (
-                <p className="text-xs text-gray-500">
+                <p className="text-[10px] sm:text-xs text-gray-500">
                   of ${Number(expense.amount).toFixed(2)}
                 </p>
               )}
