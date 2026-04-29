@@ -1,5 +1,4 @@
 from pydantic_settings import BaseSettings
-from pydantic import field_validator
 from functools import lru_cache
 from typing import List
 
@@ -23,18 +22,15 @@ class Settings(BaseSettings):
     # API
     api_host: str = "0.0.0.0"
     api_port: int = 8000
-    cors_origins: List[str] = ["http://localhost:3000"]
+    cors_origins: str = "http://localhost:3000"
 
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, v):
-        """Accept comma-separated string or JSON list."""
-        if isinstance(v, str):
-            if v.startswith("["):
-                import json
-                return json.loads(v)
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
-        return v
+    def get_cors_origins(self) -> List[str]:
+        """Parse CORS origins from comma-separated string or JSON array."""
+        v = self.cors_origins
+        if v.startswith("["):
+            import json
+            return json.loads(v)
+        return [origin.strip() for origin in v.split(",") if origin.strip()]
 
     # ML Runtime
     ml_runtime: str = "ollama"  # ollama or huggingface
