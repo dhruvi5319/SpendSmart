@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from typing import AsyncGenerator
+import ssl
 
 from app.config import settings
 
@@ -10,6 +11,18 @@ if database_url.startswith("postgresql://"):
 elif database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql+asyncpg://", 1)
 
+# Remove sslmode parameter (asyncpg uses 'ssl' instead)
+# We'll handle SSL via connect_args
+if "?sslmode=" in database_url:
+    database_url = database_url.split("?sslmode=")[0]
+elif "&sslmode=" in database_url:
+    database_url = database_url.replace("&sslmode=require", "").replace("&sslmode=prefer", "")
+
+# Create SSL context for asyncpg
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+
 # Create async engine
 engine = create_async_engine(
     database_url,
@@ -18,6 +31,7 @@ engine = create_async_engine(
     pool_pre_ping=True,
     pool_size=5,
     max_overflow=10,
+    connect_args={"ssl": ssl_context},
 )
 
 # Create session factory
