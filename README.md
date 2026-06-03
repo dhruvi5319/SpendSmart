@@ -2,8 +2,8 @@
 
 AI-powered personal finance tracker with ML-driven expense categorization and Prophet-based spending forecasts.
 
-**Live demo:** _TODO: add Vercel URL_
-**Backend API docs:** _TODO: add Render URL + `/docs`_
+**Live demo:** https://spend-smart-web.vercel.app
+**Backend API docs:** https://spendsmart-api.onrender.com/docs
 
 <!-- TODO: replace with a real screenshot of the dashboard -->
 ![SpendSmart dashboard](docs/images/dashboard.png)
@@ -45,13 +45,27 @@ The predictor is exposed via a singleton (`CategoryPredictor`) so the trained pi
 
 #### Model performance
 
-_TODO: train the model and paste the actual `accuracy_score` + `classification_report` output here. The training script already logs accuracy on the held-out 20% split — capture it from the logs and include per-class precision/recall/F1._
+Evaluated on the held-out 20% split (108 examples) using `scripts/eval_categorization.py`:
 
-```
-              precision    recall  f1-score   support
-...
-    accuracy                           0.XX       108
-```
+| Metric | Value |
+|---|---|
+| Accuracy | **50.0%** (108-example test set) |
+| Macro-avg F1 | 0.51 |
+| Weighted-avg F1 | 0.50 |
+| Best per-class F1 | Other 0.83, Food & Dining 0.70, Utilities 0.67, Travel 0.67, Housing 0.62 |
+| Worst per-class F1 | Personal Care 0.00, Shopping 0.13, Transportation 0.37, Subscriptions 0.43 |
+
+![Confusion matrix](docs/images/confusion_matrix.png)
+
+The headline 50% looks weak for a 13-class problem, but the confusion matrix tells a more useful story than the single number: **Transportation acts as a low-confidence fallback class.** Roughly 60% of Shopping, 57% of Personal Care, 43% of Education, and 38% of both Healthcare and Subscriptions get misrouted there. The training set is roughly balanced across classes (5.6–10.2% per class), so this isn't a pure prior-frequency effect — Transportation's vocabulary just overlaps with several other classes in ways the bag-of-bigrams representation can't disentangle. Personal Care drops to 0% F1 for the same reason: every example gets pulled into a neighbor (Transportation, Food & Dining, Shopping, Subscriptions).
+
+Categories with distinctive vocabulary do well: "Other" (0.83 F1) is mostly catch-all financial terms, "Housing" (0.62) has rent/mortgage/HOA, "Utilities" (0.67) has electric/water/internet — strong, non-overlapping signal words.
+
+To stress-test outside the held-out split, the same model was run against a 29-item edge-case set in `scripts/edge_cases.py` (ambiguous merchants, modifier-flipped brands like "Uber" vs "Uber Eats", out-of-vocabulary stores). Edge-case accuracy was **72.4% (21/29)**, with predictable failure patterns: "Uber Eats" routes to Transportation because "Uber" dominates the bigram score, "Amazon Prime" routes to Shopping because "Amazon" dominates over "Prime", and OOV grocers ("H Mart", "Erewhon") fall back to Transportation at 10% confidence — the model's bottom-prior behavior.
+
+The honest read: this is a credible baseline that surfaces specific, fixable failure modes rather than a polished number. The next-step improvements (more training data per under-represented class, character n-grams to handle OOV merchants, a calibrated abstain threshold so low-confidence predictions return "Other" instead of being routed to a wrong specific class) are concrete and measurable.
+
+See [docs/EVALUATION.md](docs/EVALUATION.md) for the full eval methodology, per-class confusion patterns, the edge-case results table, and reproduction commands.
 
 ### Spending forecast
 
@@ -70,6 +84,22 @@ For each user, the API forecasts the next 30 days of spending using a Prophet ti
 | API | `GET /api/v1/predictions/spending` (and category-level variants) |
 
 Code: [`apps/api/app/ml/forecasting.py`](apps/api/app/ml/forecasting.py).
+
+#### Forecast performance
+
+Production forecast accuracy requires a backtest on real user expenses, which depends on seeded or live data. As a sanity check on the forecasting machinery itself, `scripts/eval_forecasting.py` runs a holdout test against a synthetic 90-day daily-spending series with known weekly seasonality (weekend spend ~$75, weekday ~$35, small upward trend, Gaussian noise). Prophet is trained on the first 60 days and asked to predict the next 30:
+
+| Metric | Value |
+|---|---|
+| Actual mean daily spend | $61.09 |
+| Predicted mean | $63.56 |
+| **MAE** | **$5.05** (8% of the daily mean) |
+| **MAPE** | **9.7%** |
+| **80% interval coverage** | **83%** of held-out days fall inside the predicted interval |
+
+![Forecast eval](docs/images/forecast_eval.png)
+
+The interval coverage is the key calibration check: Prophet's stated 80% interval should contain ~80% of held-out actuals; 83% means the intervals aren't over-confident. The model correctly learns the weekend-vs-weekday rhythm without yearly seasonality (which it doesn't have enough data to learn anyway). This is a smoke test, not a real eval — the next step is replaying real expenses through the same harness.
 
 ---
 
